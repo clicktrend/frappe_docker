@@ -1,74 +1,74 @@
-# Frappe v16 Docker Setup Guide für Devcontainer
+# Frappe v16 Docker Setup Guide for Devcontainer
 
-## Kontext & Problem
+## Context & Problem
 
-Frappe Framework v16 erfordert **zwingend**:
-- Python 3.14.2 (nicht 3.11.6)
-- Node.js 24.13.0 (nicht 20.19.2)
+Frappe Framework v16 **requires**:
+- Python 3.14.2 (not 3.11.6)
+- Node.js 24.13.0 (not 20.19.2)
 
-Das offizielle `frappe/frappe_docker` Repository enthält nur Images für v15 mit:
+The official `frappe/frappe_docker` repository only contains images for v15 with:
 - Python 3.11.6
 - Node.js 20.19.2
 
-**Problem:** Diese Versionen sind im Docker Base-Image fest kompiliert (via pyenv/nvm) und können NICHT nachträglich im laufenden Container geändert werden.
+**Problem:** These versions are compiled into the Docker base image (via pyenv/nvm) and CANNOT be changed retroactively in a running container.
 
 ---
 
-## Lösung: Parallele Images Strategie
+## Solution: Parallel Images Strategy
 
-Wenn Ihr Projekt ein **Fork von frappe/frappe_docker** ist:
+If your project is a **fork of frappe/frappe_docker**:
 
-### Strategie: Parallele Images statt Modifikation des offiziellen Images
+### Strategy: Parallel Images Instead of Modifying Official Images
 
 ```
-images/bench/          → Python 3.11.6, Node 20.19.2 (offiziell, UNVERÄNDERT)
-images/bench-adomio/   → Python 3.14.2, Node 24.13.0  (v16 custom, NEU)
+images/bench/          → Python 3.11.6, Node 20.19.2 (official, UNCHANGED)
+images/bench-adomio/   → Python 3.14.2, Node 24.13.0  (v16 custom, NEW)
 ```
 
-**Vorteil:** Offizielle Files bleiben untouched für upstream updates!
+**Advantage:** Official files remain untouched for upstream updates!
 
 ---
 
-## Schritt 1: Neues Base-Image erstellen (bench-adomio)
+## Step 1: Create New Base Image (bench-adomio)
 
-### 1.1 Verzeichnis erstellen und Dockerfile kopieren
+### 1.1 Create Directory and Copy Dockerfile
 
 ```bash
 mkdir -p images/bench-adomio
 cp images/bench/Dockerfile images/bench-adomio/Dockerfile
 ```
 
-### 1.2 Dockerfile für v16 anpassen
+### 1.2 Adapt Dockerfile for v16
 
-**Datei:** `images/bench-adomio/Dockerfile`
+**File:** `images/bench-adomio/Dockerfile`
 
-#### Änderung 1: Labels aktualisieren
+#### Change 1: Update Labels
 
 ```dockerfile
-# VON:
+# FROM:
 LABEL author=frappé
 
-# ZU:
+# TO:
 LABEL author=adomio
 LABEL description="Frappe Bench v16 Base Image with Python 3.14.2 and Node.js 24.13.0"
 ```
 
-#### Änderung 2: Python-Versionen aktualisieren
+#### Change 2: Update Python Versions
 
 ```dockerfile
-# VON:
+# FROM:
 ENV PYTHON_VERSION_V14=3.10.13
 ENV PYTHON_VERSION=3.11.6
 
-# ZU:
+# TO:
 ENV PYTHON_VERSION_V15=3.11.6
 ENV PYTHON_VERSION=3.14.2
 ```
 
-#### Änderung 3: pyenv Installation anpassen (KRITISCH!)
+#### Change 3: Adapt pyenv Installation (CRITICAL!)
 
 ```dockerfile
-# VON:
+# FROM:
 RUN git clone --depth 1 https://github.com/pyenv/pyenv.git .pyenv \
     && pyenv install $PYTHON_VERSION_V14 \
     && pyenv install $PYTHON_VERSION \
@@ -76,7 +76,7 @@ RUN git clone --depth 1 https://github.com/pyenv/pyenv.git .pyenv \
     && PYENV_VERSION=$PYTHON_VERSION pip install --no-cache-dir virtualenv \
     && pyenv global $PYTHON_VERSION $PYTHON_VERSION_V14 \
 
-# ZU:
+# TO:
 RUN git clone https://github.com/pyenv/pyenv.git .pyenv \
     && cd .pyenv && git pull origin master && cd ~ \
     && pyenv install $PYTHON_VERSION_V15 \
@@ -86,24 +86,24 @@ RUN git clone https://github.com/pyenv/pyenv.git .pyenv \
     && pyenv global $PYTHON_VERSION $PYTHON_VERSION_V15 \
 ```
 
-**WICHTIG:** `--depth 1` muss entfernt werden + `git pull origin master`, weil pyenv Python 3.14.2 nur in neuesten Commits unterstützt!
+**IMPORTANT:** `--depth 1` must be removed + `git pull origin master` added, because pyenv only supports Python 3.14.2 in the latest commits!
 
-#### Änderung 4: Node.js-Versionen aktualisieren
+#### Change 4: Update Node.js Versions
 
 ```dockerfile
-# VON:
+# FROM:
 ENV NODE_VERSION_14=16.20.2
 ENV NODE_VERSION=20.19.2
 
-# ZU:
+# TO:
 ENV NODE_VERSION_V15=20.19.2
 ENV NODE_VERSION=24.13.0
 ```
 
-#### Änderung 5: nvm Version aktualisieren
+#### Change 5: Update nvm Version
 
 ```dockerfile
-# VON:
+# FROM:
 RUN wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash \
     && . ${NVM_DIR}/nvm.sh \
     && nvm install ${NODE_VERSION_14} \
@@ -113,7 +113,7 @@ RUN wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | 
     && nvm use v${NODE_VERSION} \
     && npm install -g yarn \
 
-# ZU:
+# TO:
 RUN wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash \
     && . ${NVM_DIR}/nvm.sh \
     && nvm install ${NODE_VERSION_V15} \
@@ -124,22 +124,22 @@ RUN wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | 
     && npm install -g yarn \
 ```
 
-### 1.3 bench-adomio Image bauen
+### 1.3 Build bench-adomio Image
 
 ```bash
 cd /path/to/your/frappe_docker_project
 DOCKER_BUILDKIT=1 docker build -t bench-adomio:latest -f images/bench-adomio/Dockerfile images/bench-adomio/
 ```
 
-**Dauer:** ~20-25 Minuten (Python wird von Source kompiliert)
+**Duration:** ~20-25 minutes (Python is compiled from source)
 
 ---
 
-## Schritt 2: Entwickler-Image anpassen (bench-claude)
+## Step 2: Adapt Development Image (bench-claude)
 
-### 2.1 Dockerfile komplett neu schreiben
+### 2.1 Completely Rewrite Dockerfile
 
-**Datei:** `images/bench-claude/Dockerfile`
+**File:** `images/bench-claude/Dockerfile`
 
 ```dockerfile
 FROM bench-adomio:latest
@@ -174,32 +174,32 @@ EXPOSE 8000-8005 9000-9005 6787
 CMD ["/bin/bash"]
 ```
 
-**WICHTIG:** FROM-Zeile geändert von `docker.io/frappe/bench:latest` zu `bench-adomio:latest`
+**IMPORTANT:** FROM line changed from `docker.io/frappe/bench:latest` to `bench-adomio:latest`
 
-### 2.2 bench-claude Image bauen
+### 2.2 Build bench-claude Image
 
 ```bash
 docker build -t <your-project-name>:bench-claude-v16 -f images/bench-claude/Dockerfile .
 ```
 
-**Dauer:** ~5-10 Minuten
+**Duration:** ~5-10 minutes
 
 ---
 
-## Schritt 3: Devcontainer-Konfiguration anpassen
+## Step 3: Adapt Devcontainer Configuration
 
-### 3.1 docker-compose.yml aktualisieren
+### 3.1 Update docker-compose.yml
 
-**Datei:** `.devcontainer/docker-compose.yml`
+**File:** `.devcontainer/docker-compose.yml`
 
 ```yaml
-# VON:
+# FROM:
 frappe:
   build:
     context: ../images/bench-claude
   image: <your-project>:bench-claude
 
-# ZU:
+# TO:
 frappe:
   build:
     context: ..
@@ -207,22 +207,22 @@ frappe:
   image: <your-project>:bench-claude-v16
 ```
 
-**Änderungen:**
-1. `context` von `../images/bench-claude` zu `..` (Parent-Verzeichnis)
-2. `dockerfile` explizit auf `images/bench-claude/Dockerfile` gesetzt
-3. `image` Tag auf `-v16` geändert
+**Changes:**
+1. `context` from `../images/bench-claude` to `..` (parent directory)
+2. `dockerfile` explicitly set to `images/bench-claude/Dockerfile`
+3. `image` tag changed to `-v16`
 
 ---
 
-## Schritt 4: Devcontainer neu bauen
+## Step 4: Rebuild Devcontainer
 
 ### In VSCode:
 
-1. Drücken Sie: `Cmd/Ctrl + Shift + P`
-2. Geben Sie ein: "Dev Containers: Rebuild Container"
-3. Wählen Sie: "Dev Containers: Rebuild Container"
+1. Press: `Cmd/Ctrl + Shift + P`
+2. Type: "Dev Containers: Rebuild Container"
+3. Select: "Dev Containers: Rebuild Container"
 
-### Oder manuell:
+### Or manually:
 
 ```bash
 cd .devcontainer
@@ -232,78 +232,78 @@ docker-compose up -d
 
 ---
 
-## Schritt 5: Verifikation im neuen Container
+## Step 5: Verification in New Container
 
-Nach dem Rebuild im Container ausführen:
+After rebuild, execute in container:
 
 ```bash
-python --version   # Sollte: Python 3.14.2 zeigen
-node --version     # Sollte: v24.13.0 zeigen
-bench --version    # Sollte: 5.x.x zeigen (aktuellste bench Version)
+python --version   # Should show: Python 3.14.2
+node --version     # Should show: v24.13.0
+bench --version    # Should show: 5.x.x (latest bench version)
 ```
 
 ---
 
-## Schritt 6: Procfile anpassen (wenn vorhanden)
+## Step 6: Adapt Procfile (if present)
 
-**Datei:** `development/frappe-bench/Procfile`
+**File:** `development/frappe-bench/Procfile`
 
 ```bash
-# SocketIO-Zeile anpassen:
+# Adjust SocketIO line:
 
-# VON:
+# FROM:
 socketio: /home/frappe/.nvm/versions/node/v20.19.2/bin/node apps/frappe/socketio.js
 
-# ZU:
+# TO:
 socketio: /home/frappe/.nvm/versions/node/v24.13.0/bin/node apps/frappe/socketio.js
 ```
 
 ---
 
-## Wichtige Hinweise
+## Important Notes
 
 ### Docker Build Cache
 
-Nach dem ersten Build (20-25 Min) sind nachfolgende Builds sehr schnell (~30 Sekunden), solange sich das Dockerfile nicht ändert!
+After the first build (20-25 min), subsequent builds are very fast (~30 seconds) as long as the Dockerfile doesn't change!
 
-### Warum nicht FROM frappe/bench:latest erben?
+### Why Not Inherit FROM frappe/bench:latest?
 
-❌ **Funktioniert nicht:**
+❌ **Doesn't work:**
 ```dockerfile
 FROM docker.io/frappe/bench:latest
-RUN pyenv install 3.14.2  # Dauert genauso lang!
-RUN nvm install 24.13.0   # Dauert genauso lang!
+RUN pyenv install 3.14.2  # Takes just as long!
+RUN nvm install 24.13.0   # Takes just as long!
 ```
 
-**Probleme:**
-1. Build-Zeit fast identisch (~20-25 Min)
-2. Image-Größe verdoppelt sich (beide Python + Node Versionen)
-3. Alte Versionen bleiben im Image (verschwendeter Speicher)
+**Problems:**
+1. Build time almost identical (~20-25 min)
+2. Image size doubles (both Python + Node versions)
+3. Old versions remain in image (wasted space)
 
-### Port-Konfiguration (optional)
+### Port Configuration (optional)
 
-Falls Sie mehrere Frappe-Projekte parallel betreiben:
+If you run multiple Frappe projects in parallel:
 
-**Datei:** `.devcontainer/docker-compose.yml`
+**File:** `.devcontainer/docker-compose.yml`
 
 ```yaml
 frappe:
   ports:
-    - "3010-3015:8000-8005"  # HTTP Ports (anpassen nach Bedarf)
+    - "3010-3015:8000-8005"  # HTTP Ports (adjust as needed)
     - "4010:9000"            # SocketIO Port
   environment:
     - VIRTUAL_HOST=yourproject.local
     - VIRTUAL_PORT=8000
-    - SELF_SIGNED_HOST=yourproject.local  # Für HTTPS mit nginx-proxy
+    - SELF_SIGNED_HOST=yourproject.local  # For HTTPS with nginx-proxy
 ```
 
-**Datei:** `development/frappe-bench/Procfile`
+**File:** `development/frappe-bench/Procfile`
 
 ```bash
-web: bench serve --port 8000  # Falls geändert, auch in common_site_config.json anpassen
+web: bench serve --port 8000  # If changed, also adjust in common_site_config.json
 ```
 
-**Datei:** `development/frappe-bench/sites/common_site_config.json`
+**File:** `development/frappe-bench/sites/common_site_config.json`
 
 ```json
 {
@@ -314,39 +314,39 @@ web: bench serve --port 8000  # Falls geändert, auch in common_site_config.json
 
 ---
 
-## Zusammenfassung der Dateien
+## File Summary
 
-### Neu erstellt:
-- `images/bench-adomio/Dockerfile` (Kopie von `images/bench/Dockerfile` mit v16-Anpassungen)
+### Newly created:
+- `images/bench-adomio/Dockerfile` (copy of `images/bench/Dockerfile` with v16 adaptations)
 
-### Modifiziert:
-- `images/bench-claude/Dockerfile` (FROM-Zeile + v16-spezifische Änderungen)
+### Modified:
+- `images/bench-claude/Dockerfile` (FROM line + v16-specific changes)
 - `.devcontainer/docker-compose.yml` (build context + image tag)
-- `development/frappe-bench/Procfile` (Node.js Pfad für socketio)
+- `development/frappe-bench/Procfile` (Node.js path for socketio)
 
-### Unverändert:
-- `images/bench/Dockerfile` (Original bleibt für upstream updates)
+### Unchanged:
+- `images/bench/Dockerfile` (original remains for upstream updates)
 
 ---
 
 ## Troubleshooting
 
-### Build schlägt bei Python 3.14.2 Installation fehl
+### Build Fails at Python 3.14.2 Installation
 
-**Problem:** pyenv hat nicht die neueste Version
-**Lösung:** `git clone --depth 1` entfernen und `git pull origin master` hinzufügen
+**Problem:** pyenv doesn't have the latest version
+**Solution:** Remove `git clone --depth 1` and add `git pull origin master`
 
-### Container startet nicht nach Rebuild
+### Container Doesn't Start After Rebuild
 
-**Prüfen:**
-1. Ist das Image erfolgreich gebaut? `docker images | grep bench-claude-v16`
-2. Läuft der alte Container noch? `docker ps -a`
-3. Ports belegt? `netstat -tulpn | grep 8000`
+**Check:**
+1. Is the image successfully built? `docker images | grep bench-claude-v16`
+2. Is the old container still running? `docker ps -a`
+3. Ports occupied? `netstat -tulpn | grep 8000`
 
-### Bench-Befehle funktionieren nicht
+### Bench Commands Don't Work
 
-**Problem:** Python/Node nicht im PATH
-**Lösung:** In `.bashrc` oder `.profile` prüfen:
+**Problem:** Python/Node not in PATH
+**Solution:** Check in `.bashrc` or `.profile`:
 ```bash
 export PYENV_ROOT="/home/frappe/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
@@ -359,21 +359,21 @@ eval "$(pyenv init -)"
 ## Quick Reference Commands
 
 ```bash
-# Images bauen
+# Build images
 docker build -t bench-adomio:latest -f images/bench-adomio/Dockerfile images/bench-adomio/
 docker build -t yourproject:bench-claude-v16 -f images/bench-claude/Dockerfile .
 
-# Image verifizieren
+# Verify image
 docker run --rm bench-adomio:latest python --version
 docker run --rm bench-adomio:latest node --version
 docker run --rm bench-adomio:latest bench --version
 
-# Container neu bauen
+# Rebuild container
 cd .devcontainer
 docker-compose down
 docker-compose up -d
 
-# Im Container verifizieren
+# Verify in container
 python --version
 node --version
 bench --version
@@ -381,22 +381,22 @@ bench --version
 
 ---
 
-## Zeitabschätzung
+## Time Estimation
 
-- **Schritt 1 (bench-adomio bauen):** 20-25 Minuten
-- **Schritt 2 (bench-claude bauen):** 5-10 Minuten
-- **Schritt 3 (docker-compose.yml anpassen):** 2 Minuten
-- **Schritt 4 (Devcontainer rebuild):** 3-5 Minuten
-- **Schritt 5+6 (Verifikation + Procfile):** 5 Minuten
+- **Step 1 (build bench-adomio):** 20-25 minutes
+- **Step 2 (build bench-claude):** 5-10 minutes
+- **Step 3 (adapt docker-compose.yml):** 2 minutes
+- **Step 4 (devcontainer rebuild):** 3-5 minutes
+- **Step 5+6 (verification + Procfile):** 5 minutes
 
-**Gesamt:** ~35-50 Minuten für den ersten vollständigen Setup
+**Total:** ~35-50 minutes for first complete setup
 
 ---
 
 ## Credits
 
-Diese Anleitung basiert auf der Frappe v16 Migration für das ADOMIO ERP-Projekt.
+This guide is based on the Frappe v16 migration for the ADOMIO ERP project.
 
-Erstellt: 2026-01-28
+Created: 2026-01-28
 Frappe Version: v16 (16.2.1)
 ERPNext Version: v16 (16.1.0)
