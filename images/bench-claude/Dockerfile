@@ -14,6 +14,10 @@ RUN . ${NVM_DIR}/nvm.sh \
     && npm install -g claude-yolo \
     && npm install -g frappe-mcp-server
 
+# Create .claude directory for configuration
+RUN mkdir -p /home/frappe/.claude \
+    && chown -R frappe:frappe /home/frappe/.claude
+
 # Verify installations
 RUN . ${NVM_DIR}/nvm.sh \
     && nvm use 24 \
