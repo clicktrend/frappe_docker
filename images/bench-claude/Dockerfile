@@ -1,4 +1,6 @@
-# Build from ADOMIO bench image with v16 support
+# Build from ADOMIO bench image with v16 support (Python 3.14.2, Node 24.13.0)
+# Note: Official frappe/bench:latest is still v15 (Python 3.11, Node 20)
+# When frappe publishes a v16 bench image, switch to: FROM docker.io/frappe/bench:<v16-tag>
 FROM bench-adomio:latest
 
 LABEL author=adomio
@@ -7,9 +9,9 @@ LABEL description="Frappe Bench v16 with Claude Code integration"
 USER frappe
 WORKDIR /home/frappe
 
-# Install Claude Code and related tools with Node 24
+# Install Claude Code and related tools
 RUN . ${NVM_DIR}/nvm.sh \
-    && nvm use 24 \
+    && nvm use ${NODE_VERSION} \
     && npm install -g @anthropic-ai/claude-code \
     && npm install -g claude-yolo \
     && npm install -g frappe-mcp-server
@@ -20,7 +22,7 @@ RUN mkdir -p /home/frappe/.claude \
 
 # Verify installations
 RUN . ${NVM_DIR}/nvm.sh \
-    && nvm use 24 \
+    && nvm use ${NODE_VERSION} \
     && node --version \
     && npm --version \
     && yarn --version \
