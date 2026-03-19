@@ -14,7 +14,12 @@ RUN if [ -n "${APPS_JSON_BASE64}" ]; then \
 
 USER frappe
 
-RUN export APP_INSTALL_ARGS="" && \
+RUN --mount=type=secret,id=deploy_key,uid=1000 \
+  mkdir -p /home/frappe/.ssh && \
+  cp /run/secrets/deploy_key /home/frappe/.ssh/id_ed25519 && \
+  chmod 600 /home/frappe/.ssh/id_ed25519 && \
+  ssh-keyscan gitlab.com >> /home/frappe/.ssh/known_hosts && \
+  export APP_INSTALL_ARGS="" && \
   if [ -n "${APPS_JSON_BASE64}" ]; then \
     export APP_INSTALL_ARGS="--apps_path=/opt/frappe/apps.json"; \
   fi && \
@@ -28,7 +33,8 @@ RUN export APP_INSTALL_ARGS="" && \
     /home/frappe/frappe-bench && \
   cd /home/frappe/frappe-bench && \
   echo "{}" > sites/common_site_config.json && \
-  find apps -mindepth 1 -path "*/.git" | xargs rm -fr
+  find apps -mindepth 1 -path "*/.git" | xargs rm -fr && \
+  rm -f /home/frappe/.ssh/id_ed25519
 
 FROM frappe/base:${FRAPPE_BRANCH} AS backend
 
