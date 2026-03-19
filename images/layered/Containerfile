@@ -10,6 +10,9 @@ USER root
 
 RUN apt-get update && apt-get install -y --no-install-recommends openssh-client && rm -rf /var/lib/apt/lists/*
 
+# Skip Cypress binary download — not needed in the backend image
+ENV CYPRESS_INSTALL_BINARY=0
+
 RUN if [ -n "${APPS_JSON_BASE64}" ]; then \
     mkdir /opt/frappe && echo "${APPS_JSON_BASE64}" | base64 -d > /opt/frappe/apps.json; \
   fi
